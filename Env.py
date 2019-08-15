@@ -40,6 +40,7 @@ class CabDriver():
                 'state_size': self.state_size,
                 'total_reward': self.total_reward,
                 'total_time_consumed': self.total_time_consumed,
+                'total_time_steps': self.total_time_steps,
                 'state_init': self.state_init
                 })
 
@@ -143,6 +144,7 @@ class CabDriver():
 
         self.total_reward = self.total_reward + reward
         self.total_time_consumed = self.total_time_consumed + time_spent_for_pickup + time_spent_for_ride
+        self.total_time_steps = self.total_time_steps + 1
 
         is_terminal = False
         if self.total_time_consumed >= EPISODE_LENGTH_IN_HOURS:
@@ -161,7 +163,7 @@ class CabDriver():
         return next_state, reward, is_terminal
     
     def tracking_info(self):
-        return self.total_reward, self.total_time_consumed
+        return self.total_reward, self.total_time_consumed, self.total_time_steps
 
     def reset(self):
         self.loc_space=np.random.choice(np.arange(1,m+1)) 
@@ -169,6 +171,7 @@ class CabDriver():
         self.day_of_week=np.random.choice(np.arange(0,d)) 
         self.total_reward=0
         self.total_time_consumed=0
+        self.total_time_steps = 0
       
         self.state_init = (self.loc_space,self.hour_of_day,self.day_of_week)
 
