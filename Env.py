@@ -23,14 +23,13 @@ Time_matrix = np.load("TM.npy")
 class CabDriver():
 
     def __init__(self, debug=False):
-        """initialise your state and define action space and state space"""
+        """define action space and state space and initialize state and tracking info"""
         self.debug = debug
 
         self.action_space = [(i,j) for i in range(1,m+1) for j in range(1,m+1) if i!=j]+[(0,0)]
-        self.state_space = [(i,j,k) for i in range(1,m+1) for j in range(1,t+1) for k in range(1,d+1)]
+        self.state_space = [(i,j,k) for i in range(1,m+1) for j in range(0,t) for k in range(0,d)]
         self.state_size = m + t + d
 
-        # Start the first round
         self.reset()
 
         if self.debug:
@@ -47,19 +46,30 @@ class CabDriver():
 
     ## Encoding state (or state-action) for NN input
     def encode_state_v1(self, state):
-        """convert the state into a vector so that it can be fed to the NN. This method converts a given state into a vector format. Hint: The vector is of size m + t + d."""
+        """convert the state into a vector so that it can be fed to the NN. This method converts a given state into a vector format. The vector is of size m + t + d."""
         location_array = np.zeros(m)
         hour_of_day_array = np.zeros(t)
         day_of_week_array = np.zeros(d)
 
-        location_array[state[0]-1]=1
-        hour_of_day_array[state[1]]=1
-        day_of_week_array[state[2]]=1
+        location_array[state[0]-1] = 1
+        hour_of_day_array[state[1]] = 1
+        day_of_week_array[state[2]] = 1
 
         encoded_state = np.concatenate((location_array, hour_of_day_array, day_of_week_array), axis=None)
 
         if self.debug:
             print('encode_state_v1: ', state, ' -> ', encoded_state)
+
+        return encoded_state
+
+    ## Encoding state (or state-action) for NN input
+    def encode_state_v2(self, state):
+        """convert the state into a vector so that it can be fed to the NN. This method converts a given state into a vector format. The vector is of size m * t * d."""
+        encoded_state = np.zeros(len(self.state_space))
+        encoded_state[self.state_space.index(state)] = 1
+
+        if self.debug:
+            print('encode_state_v2: ', state, ' -> ', encoded_state)
 
         return encoded_state
 
@@ -116,12 +126,12 @@ class CabDriver():
         pickup_day = day_of_week
         
         if pickup_hour >= 24 :
-           pickup_hour=pickup_hour - 24
-           pickup_day = pickup_day + 1
-           if pickup_day >= 7:
-               pickup_day = pickup_day - 7
+          pickup_hour=pickup_hour - 24
+          pickup_day = pickup_day + 1
+          if pickup_day >= 7:
+            pickup_day = pickup_day - 7
 
-        time_spent_for_ride=int(Time_matrix[pickup_loc-1][drop_loc-1][pickup_hour][pickup_day])
+        time_spent_for_ride = int(Time_matrix[pickup_loc-1][drop_loc-1][pickup_hour][pickup_day])
 
         if action==(0,0):
             reward = -1*C
@@ -131,7 +141,10 @@ class CabDriver():
         else:
             reward = (R * time_spent_for_ride) - (C * (time_spent_for_pickup + time_spent_for_ride))
             next_loc = drop_loc
-            next_hour_of_day = pickup_hour + time_spent_for_ride
+            if pickup_hour == hour_of_day & time_spent_for_ride == 0:
+                next_hour_of_day = hour_of_day + 1
+            else:
+                next_hour_of_day = pickup_hour + time_spent_for_ride
             next_day_of_week = day_of_week
 
         if next_hour_of_day >= 24 :
@@ -143,8 +156,11 @@ class CabDriver():
         next_state = (next_loc, next_hour_of_day, next_day_of_week)
 
         self.total_reward = self.total_reward + reward
-        self.total_time_consumed = self.total_time_consumed + time_spent_for_pickup + time_spent_for_ride
         self.total_time_steps = self.total_time_steps + 1
+        if (time_spent_for_pickup + time_spent_for_ride) > 0:
+            self.total_time_consumed = self.total_time_consumed + time_spent_for_pickup + time_spent_for_ride
+        else:
+            self.total_time_consumed = self.total_time_consumed + 1
 
         is_terminal = False
         if self.total_time_consumed >= EPISODE_LENGTH_IN_HOURS:
